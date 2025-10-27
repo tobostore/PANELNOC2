@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  @apply bg-[#EEF2FF] text-text font-sans;
+}
+
+.card-shadow {
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.05);
+}

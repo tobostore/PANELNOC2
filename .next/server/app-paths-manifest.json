@@ -1,0 +1,6 @@
+{
+  "/api/pending/route": "app/api/pending/route.js",
+  "/api/access-points/route": "app/api/access-points/route.js",
+  "/api/ip-addresses/route": "app/api/ip-addresses/route.js",
+  "/(protected)/page": "app/(protected)/page.js"
+}
