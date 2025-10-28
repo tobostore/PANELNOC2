@@ -1084,13 +1084,13 @@ export default function NOCPanel() {
               onClick={() => setSelectedSection("Dashboard")}
               isCollapsed={isSidebarCollapsed}
             />
-            <NavItem
+            {/* <NavItem
               icon={<Network className="h-4 w-4" />}
               label="IP Publik"
               active={selectedSection === "IP Publik"}
               onClick={() => setSelectedSection("IP Publik")}
               isCollapsed={isSidebarCollapsed}
-            />
+            /> */}
             <NavItem
               icon={<Wifi className="h-4 w-4" />}
               label="Access Points"
@@ -1112,13 +1112,13 @@ export default function NOCPanel() {
               onClick={() => setSelectedSection("Monitoring Router")}
               isCollapsed={isSidebarCollapsed}
             />
-            <NavItem
+            {/* <NavItem
               icon={<Upload className="h-4 w-4" />}
               label="Aktivasi Reseller"
-              active={selectedSection === "Aktivasi Reseller"}
+              active={selectedSection === "Aktivasi Pelanggan"}
               onClick={() => setSelectedSection("Aktivasi Reseller")}
               isCollapsed={isSidebarCollapsed}
-            />
+            /> */}
             <NavItem
               icon={<Clock className="h-4 w-4" />}
               label="Pendingan"
@@ -1142,8 +1142,6 @@ export default function NOCPanel() {
         <main className="flex-1 space-y-6 p-6">
           {selectedSection === "Monitoring Router" ? (
             <RouterMonitoringSection routers={routers} connectionState={connectionState} lastError={lastError} />
-          ) : selectedSection === "IP Publik" ? (
-            <PublicIpSection />
           ) : selectedSection === "Access Points" ? (
             <AccessPointsSection />
           ) : selectedSection === "Aktivasi Reseller" ? (

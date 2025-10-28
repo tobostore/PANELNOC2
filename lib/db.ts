@@ -452,6 +452,17 @@ export async function createAktivasiClient(payload: CreateAktivasiClientPayload)
   return result.insertId;
 }
 
+export type UpdateClientPayload = {
+  username?: string
+  ipAddress?: string | null
+  type?: string | null
+  status?: "aktif" | "nonaktif"
+  profile?: string | null
+  comment?: string | null
+  routerId?: number | null
+}
+
+
 export async function updateClient(id: number, payload: UpdateClientPayload): Promise<void> {
   if (!Number.isFinite(id) || id <= 0) {
     throw new Error("ID client tidak valid.");

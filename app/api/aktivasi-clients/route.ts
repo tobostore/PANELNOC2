@@ -18,7 +18,10 @@ const CAMEL_TO_SNAKE_MAP: Record<string, string> = {
   routerGateway: "router_gateway",
 } as const
 
-type RemoteAktivasiPayload = Record<(typeof CAMEL_TO_SNAKE_MAP)[keyof typeof CAMEL_TO_SNAKE_MAP], string>
+type RemoteAktivasiPayload = Record<
+  (typeof CAMEL_TO_SNAKE_MAP)[keyof typeof CAMEL_TO_SNAKE_MAP],
+  string
+>
 
 type AktivasiClientItem = {
   id: number | null
@@ -37,15 +40,20 @@ type AktivasiClientItem = {
   updatedAt: string | null
 }
 
+/**
+ * Normalisasi satu item API menjadi format internal
+ */
 function normalizeItem(item: unknown): AktivasiClientItem | null {
   if (!item || typeof item !== "object") {
     return null
   }
+
   const record = item as Record<string, unknown>
   const idRaw = record.id ?? record.ID ?? record.Id
   const id = typeof idRaw === "number" ? idRaw : Number(idRaw)
 
-  const get = (key: string) => (typeof record[key] === "string" ? (record[key] as string).trim() : null)
+  const get = (key: string) =>
+    typeof record[key] === "string" ? (record[key] as string).trim() : null
 
   return {
     id: Number.isFinite(id) ? Number(id) : null,
@@ -65,6 +73,9 @@ function normalizeItem(item: unknown): AktivasiClientItem | null {
   }
 }
 
+/**
+ * Format response standar untuk API
+ */
 function toApiResponse(items: AktivasiClientItem[]) {
   return {
     status: "ok",
@@ -72,8 +83,14 @@ function toApiResponse(items: AktivasiClientItem[]) {
   }
 }
 
-function sanitize(body: Partial<Record<string, unknown>>): RemoteAktivasiPayload {
+/**
+ * Sanitasi body dari frontend ke format API backend (snake_case)
+ */
+function sanitize(
+  body: Partial<Record<string, unknown>>,
+): RemoteAktivasiPayload {
   const result: Record<string, string> = {}
+
   for (const camelKey in CAMEL_TO_SNAKE_MAP) {
     const value = body[camelKey]
     if (typeof value !== "string" || !value.trim()) {
@@ -81,28 +98,38 @@ function sanitize(body: Partial<Record<string, unknown>>): RemoteAktivasiPayload
     }
     result[CAMEL_TO_SNAKE_MAP[camelKey]] = value.trim()
   }
+
   return result as RemoteAktivasiPayload
 }
 
+/**
+ * Ambil semua data aktivasi dari server remote
+ */
 async function fetchAllItems(): Promise<AktivasiClientItem[]> {
-    const response = await fetch(REMOTE_AKTIVASI_CLIENT_API, { cache: "no-store" })
-    if (!response.ok) {
-      console.error("[api/aktivasi-clients] failed to fetch all items, remote API error", { status: response.status })
-      throw new Error(`API mengembalikan status ${response.status}`)
-    }
+  const response = await fetch(REMOTE_AKTIVASI_CLIENT_API, { cache: "no-store" })
+  if (!response.ok) {
+    console.error(
+      "[api/aktivasi-clients] failed to fetch all items, remote API error",
+      { status: response.status },
+    )
+    throw new Error(`API mengembalikan status ${response.status}`)
+  }
 
-    const payload = (await response.json()) as unknown
-    const dataArray = Array.isArray(payload)
-      ? payload
-      : Array.isArray((payload as Record<string, unknown>).data)
-        ? (payload as Record<string, unknown>).data
-        : []
+  const payload = (await response.json()) as unknown
+  const dataArray: unknown[] = Array.isArray(payload)
+    ? payload
+    : Array.isArray((payload as Record<string, unknown>).data)
+    ? ((payload as Record<string, unknown>).data as unknown[])
+    : []
 
-    return dataArray
-      .map((item) => normalizeItem(item))
-      .filter((item): item is AktivasiClientItem => item !== null)
+  return dataArray
+    .map((item) => normalizeItem(item))
+    .filter((item): item is AktivasiClientItem => item !== null)
 }
 
+/**
+ * GET — Ambil semua data aktivasi clients
+ */
 export async function GET() {
   try {
     const items = await fetchAllItems()
@@ -110,15 +137,15 @@ export async function GET() {
   } catch (error) {
     console.error("[api/aktivasi-clients] failed to fetch data", error)
     return NextResponse.json(
-      {
-        status: "error",
-        message: "Gagal mengambil data aktivasi reseller.",
-      },
+      { status: "error", message: "Gagal mengambil data aktivasi reseller." },
       { status: 500 },
     )
   }
 }
 
+/**
+ * POST — Tambah data aktivasi baru
+ */
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as Partial<Record<string, unknown>>
@@ -127,13 +154,13 @@ export async function POST(request: Request) {
     const token = cookies().get(AUTH_COOKIE_NAME)?.value ?? null
     const auth = verifyAuthToken(token)
     if (!auth) {
-        return NextResponse.json({ status: "error", message: "Anda belum login." }, { status: 401 })
+      return NextResponse.json(
+        { status: "error", message: "Anda belum login." },
+        { status: 401 },
+      )
     }
 
-    const requestPayload = {
-      ...payload,
-      created_by: auth.username,
-    }
+    const requestPayload = { ...payload, created_by: auth.username }
 
     const response = await fetch(REMOTE_AKTIVASI_CLIENT_API, {
       method: "POST",
@@ -144,7 +171,7 @@ export async function POST(request: Request) {
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => null)
       const message =
-        typeof errorPayload?.message === "string" && errorPayload.message.trim().length > 0
+        typeof errorPayload?.message === "string" && errorPayload.message.trim()
           ? errorPayload.message
           : `API mengembalikan status ${response.status}`
       throw new Error(message)
@@ -165,113 +192,136 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         status: "error",
-        message: error instanceof Error ? error.message : "Gagal menyimpan data aktivasi reseller.",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Gagal menyimpan data aktivasi reseller.",
       },
       { status: 400 },
     )
   }
 }
 
+/**
+ * PUT — Update data aktivasi
+ */
 export async function PUT(request: Request) {
-    try {
-      const body = (await request.json()) as Partial<Record<string, unknown> & { id: number | string }>
-      const { id, ...data } = body
-  
-      if (!id) {
-        throw new Error("ID aktivasi tidak valid atau tidak tersedia.")
-      }
-  
-      const payload = sanitize(data)
-  
-      const token = cookies().get(AUTH_COOKIE_NAME)?.value ?? null
-      const auth = verifyAuthToken(token)
-      if (!auth) {
-        return NextResponse.json({ status: "error", message: "Anda belum login." }, { status: 401 })
-      }
-  
-      const response = await fetch(`${REMOTE_AKTIVASI_CLIENT_API}/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-  
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => null)
-        const message =
-          typeof errorPayload?.message === "string" && errorPayload.message.trim().length > 0
-            ? errorPayload.message
-            : `API mengembalikan status ${response.status}`
-        throw new Error(message)
-      }
-  
-      const result = await response.json().catch(() => ({ status: "ok" }))
-      const items = await fetchAllItems()
-  
+  try {
+    const body = (await request.json()) as Partial<
+      Record<string, unknown> & { id: number | string }
+    >
+    const { id, ...data } = body
+
+    if (!id) {
+      throw new Error("ID aktivasi tidak valid atau tidak tersedia.")
+    }
+
+    const payload = sanitize(data)
+
+    const token = cookies().get(AUTH_COOKIE_NAME)?.value ?? null
+    const auth = verifyAuthToken(token)
+    if (!auth) {
       return NextResponse.json(
-        {
-          ...toApiResponse(items),
-          message: result?.message ?? "Aktivasi reseller berhasil diperbarui.",
-        },
-        { status: 200 },
-      )
-    } catch (error) {
-      console.error("[api/aktivasi-clients] failed to update", error)
-      return NextResponse.json(
-        {
-          status: "error",
-          message: error instanceof Error ? error.message : "Gagal memperbarui data aktivasi reseller.",
-        },
-        { status: 400 },
+        { status: "error", message: "Anda belum login." },
+        { status: 401 },
       )
     }
+
+    const response = await fetch(`${REMOTE_AKTIVASI_CLIENT_API}/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null)
+      const message =
+        typeof errorPayload?.message === "string" && errorPayload.message.trim()
+          ? errorPayload.message
+          : `API mengembalikan status ${response.status}`
+      throw new Error(message)
+    }
+
+    const result = await response.json().catch(() => ({ status: "ok" }))
+    const items = await fetchAllItems()
+
+    return NextResponse.json(
+      {
+        ...toApiResponse(items),
+        message: result?.message ?? "Aktivasi reseller berhasil diperbarui.",
+      },
+      { status: 200 },
+    )
+  } catch (error) {
+    console.error("[api/aktivasi-clients] failed to update", error)
+    return NextResponse.json(
+      {
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Gagal memperbarui data aktivasi reseller.",
+      },
+      { status: 400 },
+    )
   }
-  
-  export async function DELETE(request: Request) {
-    try {
-      const { searchParams } = new URL(request.url)
-      const id = searchParams.get("id")
-  
-      if (!id) {
-        throw new Error("ID aktivasi tidak ditemukan.")
-      }
-  
-      const token = cookies().get(AUTH_COOKIE_NAME)?.value ?? null
-      const auth = verifyAuthToken(token)
-      if (!auth) {
-        return NextResponse.json({ status: "error", message: "Anda belum login." }, { status: 401 })
-      }
-  
-      const response = await fetch(`${REMOTE_AKTIVASI_CLIENT_API}/${id}`, {
-        method: "DELETE",
-      })
-  
-      if (!response.ok) {
-        const errorPayload = await response.json().catch(() => null)
-        const message =
-          typeof errorPayload?.message === "string" && errorPayload.message.trim().length > 0
-            ? errorPayload.message
-            : `API mengembalikan status ${response.status}`
-        throw new Error(message)
-      }
-  
-      const result = await response.json().catch(() => ({ status: "ok" }))
-      const items = await fetchAllItems()
-  
+}
+
+/**
+ * DELETE — Hapus data aktivasi berdasarkan ID
+ */
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const id = searchParams.get("id")
+
+    if (!id) {
+      throw new Error("ID aktivasi tidak ditemukan.")
+    }
+
+    const token = cookies().get(AUTH_COOKIE_NAME)?.value ?? null
+    const auth = verifyAuthToken(token)
+    if (!auth) {
       return NextResponse.json(
-        {
-          ...toApiResponse(items),
-          message: result?.message ?? "Aktivasi reseller berhasil dihapus.",
-        },
-        { status: 200 },
-      )
-    } catch (error) {
-      console.error("[api/aktivasi-clients] failed to delete", error)
-      return NextResponse.json(
-        {
-          status: "error",
-          message: error instanceof Error ? error.message : "Gagal menghapus data aktivasi reseller.",
-        },
-        { status: 400 },
+        { status: "error", message: "Anda belum login." },
+        { status: 401 },
       )
     }
+
+    const response = await fetch(`${REMOTE_AKTIVASI_CLIENT_API}/${id}`, {
+      method: "DELETE",
+    })
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => null)
+      const message =
+        typeof errorPayload?.message === "string" && errorPayload.message.trim()
+          ? errorPayload.message
+          : `API mengembalikan status ${response.status}`
+      throw new Error(message)
+    }
+
+    const result = await response.json().catch(() => ({ status: "ok" }))
+    const items = await fetchAllItems()
+
+    return NextResponse.json(
+      {
+        ...toApiResponse(items),
+        message: result?.message ?? "Aktivasi reseller berhasil dihapus.",
+      },
+      { status: 200 },
+    )
+  } catch (error) {
+    console.error("[api/aktivasi-clients] failed to delete", error)
+    return NextResponse.json(
+      {
+        status: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Gagal menghapus data aktivasi reseller.",
+      },
+      { status: 400 },
+    )
   }
+}

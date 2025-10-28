@@ -6,7 +6,7 @@ import {
   buildRemotePayload,
   fetchRemoteAccessPoints,
   handleRemoteError,
-} from "../route"
+} from "../utils"
 
 const REQUIRED_HEADERS = [
   "nama_bts",
