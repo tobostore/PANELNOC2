@@ -1,6 +1,9 @@
 {
+  "/login/page": "app/login/page.js",
   "/api/pending/route": "app/api/pending/route.js",
-  "/api/access-points/route": "app/api/access-points/route.js",
+  "/api/aktivasi-clients/route": "app/api/aktivasi-clients/route.js",
+  "/api/clients/route": "app/api/clients/route.js",
   "/api/ip-addresses/route": "app/api/ip-addresses/route.js",
+  "/api/access-points/route": "app/api/access-points/route.js",
   "/(protected)/page": "app/(protected)/page.js"
 }

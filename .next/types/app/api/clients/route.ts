@@ -1,4 +1,4 @@
-// File: /root/isolir4/app/api/clients/route.ts
+// File: C:\Users\Tri Hartanto\Downloads\GABUTAN MASS HARR\ISOLIR\PANELNOC2\app\api\clients\route.ts
 import * as entry from '../../../../../app/api/clients/route.js'
 import type { NextRequest } from 'next/server.js'
 

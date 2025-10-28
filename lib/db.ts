@@ -9,9 +9,9 @@ type GlobalWithPool = typeof globalThis & {
 };
 
 const config: PoolOptions = {
-  host: "localhost",
+  host: "10.20.25.8",
   database: "router_db",
-  user: "Harr",
+  user: "Harr1",
   password: "gmdp@2025",
   charset: "utf8mb4",
   waitForConnections: true,

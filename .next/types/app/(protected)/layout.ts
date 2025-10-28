@@ -1,4 +1,4 @@
-// File: /root/isolir4/app/(protected)/layout.tsx
+// File: C:\Users\Tri Hartanto\Downloads\GABUTAN MASS HARR\ISOLIR\PANELNOC2\app\(protected)\layout.tsx
 import * as entry from '../../../../app/(protected)/layout.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

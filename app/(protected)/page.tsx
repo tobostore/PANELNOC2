@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   ChevronDown,
+  ChevronsLeft,
   Clock,
   Cpu,
   Database,
@@ -940,6 +941,7 @@ export default function NOCPanel() {
   const [selectedRouterId, setSelectedRouterId] = useState<string | null>(null)
   const [pendingPreview, setPendingPreview] = useState<PendingItem[]>([])
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
 
   useEffect(() => {
     if (routers.length === 0) {
@@ -1069,16 +1071,72 @@ export default function NOCPanel() {
       </header>
 
       <div className="flex">
-        <aside className="w-64 border-r border-border bg-sidebar/60 backdrop-blur">
-          <nav className="space-y-2 p-4">
-            <NavItem icon={<Zap className="h-4 w-4" />} label="Dashboard" active={selectedSection === "Dashboard"} onClick={() => setSelectedSection("Dashboard")} />
-            <NavItem icon={<Network className="h-4 w-4" />} label="IP Publik" active={selectedSection === "IP Publik"} onClick={() => setSelectedSection("IP Publik")} />
-            <NavItem icon={<Wifi className="h-4 w-4" />} label="Access Points" active={selectedSection === "Access Points"} onClick={() => setSelectedSection("Access Points")} />
-            <NavItem icon={<Users className="h-4 w-4" />} label="Clients Personal" active={selectedSection === "Clients"} onClick={() => setSelectedSection("Clients")} />
-            <NavItem icon={<Activity className="h-4 w-4" />} label="Monitoring Distribusi" active={selectedSection === "Monitoring Router"} onClick={() => setSelectedSection("Monitoring Router")} />
-            <NavItem icon={<Upload className="h-4 w-4" />} label="Aktivasi Reseller" active={selectedSection === "Aktivasi Reseller"} onClick={() => setSelectedSection("Aktivasi Reseller")} />
-            <NavItem icon={<Clock className="h-4 w-4" />} label="Pendingan" active={selectedSection === "Pending"} onClick={() => setSelectedSection("Pending")} />
+        <aside
+          className={`flex flex-col border-r border-border bg-sidebar/60 backdrop-blur transition-all duration-300 ${
+            isSidebarCollapsed ? "w-20" : "w-64"
+          }`}
+        >
+          <nav className="flex-1 space-y-2 p-4">
+            <NavItem
+              icon={<Zap className="h-4 w-4" />}
+              label="Dashboard"
+              active={selectedSection === "Dashboard"}
+              onClick={() => setSelectedSection("Dashboard")}
+              isCollapsed={isSidebarCollapsed}
+            />
+            <NavItem
+              icon={<Network className="h-4 w-4" />}
+              label="IP Publik"
+              active={selectedSection === "IP Publik"}
+              onClick={() => setSelectedSection("IP Publik")}
+              isCollapsed={isSidebarCollapsed}
+            />
+            <NavItem
+              icon={<Wifi className="h-4 w-4" />}
+              label="Access Points"
+              active={selectedSection === "Access Points"}
+              onClick={() => setSelectedSection("Access Points")}
+              isCollapsed={isSidebarCollapsed}
+            />
+            <NavItem
+              icon={<Users className="h-4 w-4" />}
+              label="Clients Personal"
+              active={selectedSection === "Clients"}
+              onClick={() => setSelectedSection("Clients")}
+              isCollapsed={isSidebarCollapsed}
+            />
+            <NavItem
+              icon={<Activity className="h-4 w-4" />}
+              label="Monitoring Distribusi"
+              active={selectedSection === "Monitoring Router"}
+              onClick={() => setSelectedSection("Monitoring Router")}
+              isCollapsed={isSidebarCollapsed}
+            />
+            <NavItem
+              icon={<Upload className="h-4 w-4" />}
+              label="Aktivasi Reseller"
+              active={selectedSection === "Aktivasi Reseller"}
+              onClick={() => setSelectedSection("Aktivasi Reseller")}
+              isCollapsed={isSidebarCollapsed}
+            />
+            <NavItem
+              icon={<Clock className="h-4 w-4" />}
+              label="Pendingan"
+              active={selectedSection === "Pending"}
+              onClick={() => setSelectedSection("Pending")}
+              isCollapsed={isSidebarCollapsed}
+            />
           </nav>
+          <div className="p-4">
+            <button
+              type="button"
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              className="flex w-full items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium text-muted-foreground transition hover:bg-secondary/50 hover:text-foreground"
+            >
+              <ChevronsLeft className={`h-5 w-5 transition-transform ${isSidebarCollapsed ? "rotate-180" : ""}`} />
+              {!isSidebarCollapsed && <span className="ml-2">Tutup Panel</span>}
+            </button>
+          </div>
         </aside>
 
         <main className="flex-1 space-y-6 p-6">
@@ -2204,11 +2262,16 @@ const CLIENTS_PAGE_SIZE = 21
 
 function AktivasiClientsSection() {
   const [items, setItems] = useState<AktivasiClientItem[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
-  const [formOpen, setFormOpen] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [formData, setFormData] = useState({
+  const [lastUpdated, setLastUpdated] = useState<number | null>(null)
+  const [infoMessage, setInfoMessage] = useState<string | null>(null)
+  const [formMode, setFormMode] = useState<"create" | "edit" | null>(null)
+  const [formError, setFormError] = useState<string | null>(null)
+  const [submitting, setSubmitting] = useState<boolean>(false)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
+  const [formData, setFormData] = useState<AktivasiClientItem>({
+    id: null,
     namaPelanggan: "",
     namaLayanan: "",
     kapasitasLayanan: "",
@@ -2219,23 +2282,32 @@ function AktivasiClientsSection() {
     ipAddress: "",
     ipGateway: "",
     routerGateway: "",
+    createdBy: null,
+    createdAt: null,
+    updatedAt: null,
   })
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+      setInfoMessage(null)
       const response = await fetch("/api/aktivasi-clients")
       if (!response.ok) {
         throw new Error(`Server mengembalikan status ${response.status}`)
       }
-      const payload = (await response.json()) as { status: string; items?: AktivasiClientItem[] }
+      const payload: { status: string; items?: AktivasiClientItem[] } = await response.json()
+
       if (payload.status !== "ok" || !Array.isArray(payload.items)) {
-        throw new Error("Format data aktivasi tidak valid.")
+        throw new Error("Format data tidak valid.")
       }
+
       setItems(payload.items)
+      setLastUpdated(Date.now())
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Terjadi kesalahan saat memuat data aktivasi.")
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan tidak dikenal."
+      setError(message)
+      setInfoMessage(null)
       setItems([])
     } finally {
       setLoading(false)
@@ -2246,13 +2318,20 @@ function AktivasiClientsSection() {
     void fetchData()
   }, [fetchData])
 
-  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = event.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+  const displayTimestamp = useCallback((value: string | null) => {
+    if (!value) {
+      return "-"
+    }
+    try {
+      return formatWibTimestamp(value)
+    } catch {
+      return value
+    }
+  }, [])
 
-  const resetForm = () => {
+  const handleOpenCreateForm = () => {
     setFormData({
+      id: null,
       namaPelanggan: "",
       namaLayanan: "",
       kapasitasLayanan: "",
@@ -2263,151 +2342,278 @@ function AktivasiClientsSection() {
       ipAddress: "",
       ipGateway: "",
       routerGateway: "",
+      createdBy: null,
+      createdAt: null,
+      updatedAt: null,
     })
+    setFormError(null)
+    setFormMode("create")
   }
 
-  const closeForm = () => {
-    setFormOpen(false)
-    setSubmitting(false)
+  const handleOpenEditForm = (item: AktivasiClientItem) => {
+    setFormData(item)
+    setFormError(null)
+    setFormMode("edit")
   }
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleCloseForm = () => {
+    if (!submitting) {
+      setFormMode(null)
+    }
+  }
+
+  const handleSubmit = async (event: FormEvent) => {
     event.preventDefault()
+    if (submitting || !formMode) return
+
+    setFormError(null)
     setSubmitting(true)
     setError(null)
+
     try {
       const payload = {
-        nama_pelanggan: formData.namaPelanggan.trim(),
-        nama_layanan: formData.namaLayanan.trim(),
-        kapasitas_layanan: formData.kapasitasLayanan.trim(),
-        vlan_id: formData.vlanId.trim(),
-        nama_metro: formData.namaMetro.trim(),
-        site_metro: formData.siteMetro.trim(),
-        kapasitas_metro: formData.kapasitasMetro.trim(),
-        ip_address: formData.ipAddress.trim(),
-        ip_gateway: formData.ipGateway.trim(),
-        router_gateway: formData.routerGateway.trim(),
+        namaPelanggan: formData.namaPelanggan.trim(),
+        namaLayanan: formData.namaLayanan.trim(),
+        kapasitasLayanan: formData.kapasitasLayanan.trim(),
+        vlanId: formData.vlanId.trim(),
+        namaMetro: formData.namaMetro.trim(),
+        siteMetro: formData.siteMetro.trim(),
+        kapasitasMetro: formData.kapasitasMetro.trim(),
+        ipAddress: formData.ipAddress.trim(),
+        ipGateway: formData.ipGateway.trim(),
+        routerGateway: formData.routerGateway.trim(),
       }
 
-      const response = await fetch("/api/aktivasi-clients", {
-        method: "POST",
+      if (Object.values(payload).some((value) => !value)) {
+        throw new Error("Semua field wajib diisi.")
+      }
+
+      const isEdit = formMode === "edit"
+      const url = "/api/aktivasi-clients"
+      const method = isEdit ? "PUT" : "POST"
+      const body = isEdit ? JSON.stringify({ id: formData.id, ...payload }) : JSON.stringify(payload)
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body,
       })
 
-      const result = await response.json().catch(() => null)
-      if (!response.ok || result?.status !== "ok") {
-        throw new Error(result?.message ?? "Gagal menyimpan aktivasi.")
+      if (!response.ok) {
+        const errorPayload = await response.json().catch(() => null)
+        const message =
+          typeof errorPayload?.message === "string" && errorPayload.message.trim()
+            ? errorPayload.message
+            : `Gagal ${isEdit ? "memperbarui" : "menambahkan"} aktivasi (status ${response.status}).`
+        throw new Error(message)
       }
 
-      resetForm()
-      closeForm()
-      await fetchData()
+      const result = (await response.json()) as { items?: AktivasiClientItem[]; message?: string }
+      setItems(result.items ?? [])
+      setLastUpdated(Date.now())
+      setInfoMessage(result.message ?? `Aktivasi berhasil ${isEdit ? "diperbarui" : "ditambahkan"}.`)
+      handleCloseForm()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan aktivasi.")
+      const message = err instanceof Error ? err.message : "Terjadi kesalahan tidak dikenal."
+      setFormError(message)
     } finally {
       setSubmitting(false)
     }
   }
 
+  const handleDelete = useCallback(
+    async (item: AktivasiClientItem) => {
+      if (!item.id) {
+        return
+      }
+      const confirmed = window.confirm(`Hapus aktivasi untuk ${item.namaPelanggan}?`)
+      if (!confirmed) {
+        return
+      }
+      setDeletingId(item.id)
+      setError(null)
+      setInfoMessage(null)
+      try {
+        const response = await fetch(`/api/aktivasi-clients?id=${item.id}`, { method: "DELETE" })
+        if (!response.ok) {
+          const errorPayload = await response.json().catch(() => null)
+          const message =
+            typeof errorPayload?.message === "string" && errorPayload.message.trim()
+              ? errorPayload.message
+              : `Gagal menghapus aktivasi (status ${response.status}).`
+          throw new Error(message)
+        }
+        const result = (await response.json()) as { items?: AktivasiClientItem[]; message?: string }
+        setItems(result.items ?? [])
+        setLastUpdated(Date.now())
+        setInfoMessage(result.message ?? "Aktivasi berhasil dihapus.")
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Terjadi kesalahan tidak dikenal."
+        setError(message)
+      } finally {
+        setDeletingId(null)
+      }
+    },
+    [fetchData],
+  )
+
   return (
-    <section className="rounded border border-border bg-card p-5 space-y-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <section className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Aktivasi Reseller</h2>
-          <p className="text-xs text-muted-foreground">Data aktivasi reseller yang diambil dari layanan isolir.</p>
+          <p className="text-sm text-muted-foreground">
+            Daftar aktivasi pelanggan reseller yang telah dibuat.
+          </p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-3">
+          {lastUpdated ? (
+            <span className="text-xs text-muted-foreground">
+              Terakhir diperbarui {formatRelativeTime(lastUpdated)}
+            </span>
+          ) : null}
+          <button
+            type="button"
+            onClick={handleOpenCreateForm}
+            className="inline-flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary hover:text-primary"
+          >
+            <Plus className="h-4 w-4" />
+            Tambah Aktivasi
+          </button>
           <button
             type="button"
             onClick={() => void fetchData()}
-            disabled={loading || submitting}
-            className="inline-flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground transition hover:border-primary hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+            disabled={loading}
+            className="inline-flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-sm font-medium text-foreground transition hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-70"
           >
             <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
             Muat Ulang
           </button>
-          <button
-            type="button"
-            onClick={() => {
-              resetForm()
-              setFormOpen(true)
-            }}
-            className="inline-flex items-center gap-2 rounded border border-primary/60 bg-primary/10 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-primary transition hover:border-primary hover:bg-primary/20"
-          >
-            <Plus className="h-4 w-4" />
-            Tambah
-          </button>
         </div>
       </div>
 
-      {error ? <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">❌ {error}</div> : null}
-
-      {loading ? (
-        <p className="text-sm text-muted-foreground">Memuat data aktivasi…</p>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Belum ada data aktivasi reseller.</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-xs">
-            <thead>
-              <tr className="bg-secondary/30 text-muted-foreground">
-                <th className="border border-border px-3 py-2 text-left font-semibold">Nama Pelanggan</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Layanan</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">VLAN</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Metro</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Site</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Kapasitas</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">IP</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Gateway</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Router Gateway</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Diaktifkan Oleh</th>
-                <th className="border border-border px-3 py-2 text-left font-semibold">Dibuat</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item, index) => (
-                <tr key={item.id ?? index} className="odd:bg-card even:bg-background/80 text-foreground">
-                  <td className="border border-border px-3 py-2 font-medium">{item.namaPelanggan}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">
-                    {item.namaLayanan} · {item.kapasitasLayanan}
-                  </td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.vlanId}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.namaMetro}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.siteMetro}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.kapasitasMetro}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.ipAddress}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.ipGateway}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.routerGateway}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">{item.createdBy ?? "-"}</td>
-                  <td className="border border-border px-3 py-2 text-muted-foreground">
-                    {item.createdAt ? formatWibTimestamp(item.createdAt) : "-"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {error ? (
+        <div className="rounded border border-red-500/40 bg-red-500/5 px-4 py-2 text-sm text-red-500">
+          {error}
         </div>
-      )}
+      ) : null}
 
-      {formOpen ? (
+      {infoMessage ? (
+        <div className="rounded border border-emerald-500/40 bg-emerald-500/5 px-4 py-2 text-sm text-emerald-500">
+          {infoMessage}
+        </div>
+      ) : null}
+
+      <div className="overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-muted-foreground">
+            <RefreshCcw className="h-4 w-4 animate-spin" />
+            Mengambil data aktivasi...
+          </div>
+        ) : items.length === 0 ? (
+          <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+            Belum ada data aktivasi untuk ditampilkan.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="bg-secondary/30 text-muted-foreground">
+                  <th className="border border-border px-3 py-2 text-left font-semibold">Nama Pelanggan</th>
+                  <th className="border border-border px-3 py-2 text-left font-semibold">Layanan</th>
+                  <th className="border border-border px-3 py-2 text-left font-semibold">VLAN</th>
+                  <th className="border border-border px-3 py-2 text-left font-semibold">Metro</th>
+                  <th className="border border-border px-3 py-2 text-left font-semibold">IP Address</th>
+                  <th className="border border-border px-3 py-2 text-left font-semibold">Dibuat oleh</th>
+                  <th className="border border-border px-3 py-2 text-left font-semibold">Waktu</th>
+                  <th className="border border-border px-3 py-2 text-left font-semibold">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className="odd:bg-card even:bg-background/80">
+                    <td className="border border-border px-3 py-2 font-medium text-foreground">
+                      {item.namaPelanggan}
+                    </td>
+                    <td className="border border-border px-3 py-2 text-muted-foreground">
+                      {item.namaLayanan} ({item.kapasitasLayanan})
+                    </td>
+                    <td className="border border-border px-3 py-2 text-muted-foreground">{item.vlanId}</td>
+                    <td className="border border-border px-3 py-2 text-muted-foreground">
+                      {item.namaMetro} ({item.siteMetro} / {item.kapasitasMetro})
+                    </td>
+                    <td className="border border-border px-3 py-2 text-muted-foreground">
+                      <div className="flex flex-col">
+                        <span>{item.ipAddress}</span>
+                        <span className="text-xs text-muted-foreground/80">Gateway: {item.ipGateway}</span>
+                        <span className="text-xs text-muted-foreground/80">via {item.routerGateway}</span>
+                      </div>
+                    </td>
+                    <td className="border border-border px-3 py-2 text-muted-foreground">
+                      {item.createdBy ?? "-"}
+                    </td>
+                    <td className="border border-border px-3 py-2 text-muted-foreground">
+                      {displayTimestamp(item.createdAt)}
+                    </td>
+                    <td className="border border-border px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditForm(item)}
+                          className="inline-flex items-center gap-2 rounded border border-amber-500/40 bg-amber-500/5 px-3 py-1.5 text-xs font-medium text-amber-500 transition hover:border-amber-500/60 hover:text-amber-400"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(item)}
+                          disabled={deletingId === item.id}
+                          className="inline-flex items-center gap-2 rounded border border-red-500/40 bg-red-500/5 px-3 py-1.5 text-xs font-medium text-red-500 transition hover:border-red-500/60 hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {deletingId === item.id ? <RefreshCcw className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                          {deletingId === item.id ? "Menghapus..." : "Hapus"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {formMode ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
           <div className="relative w-full max-w-2xl rounded-lg border border-border bg-card p-5 shadow-lg">
             <button
               type="button"
-              onClick={closeForm}
+              onClick={handleCloseForm}
               className="absolute right-4 top-4 rounded border border-border bg-background px-2 py-1 text-xs text-muted-foreground transition hover:border-primary hover:text-primary"
             >
               <X className="h-3.5 w-3.5" />
             </button>
-            <h3 className="mb-4 text-base font-semibold text-foreground">Tambah Aktivasi Reseller</h3>
-            <form className="space-y-4" onSubmit={handleSubmit}>
+            <h3 className="mb-4 text-base font-semibold text-foreground">
+              {formMode === "edit" ? "Edit Aktivasi Reseller" : "Tambah Aktivasi Reseller"}
+            </h3>
+            {formError ? (
+              <div className="mb-3 rounded border border-red-500/40 bg-red-500/5 px-3 py-2 text-xs text-red-500">
+                {formError}
+              </div>
+            ) : null}
+            <form
+              className="space-y-3"
+              onSubmit={handleSubmit}
+            >
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <FormField label="Nama Pelanggan" required>
                   <input
                     name="namaPelanggan"
                     value={formData.namaPelanggan}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, namaPelanggan: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2416,7 +2622,9 @@ function AktivasiClientsSection() {
                   <input
                     name="namaLayanan"
                     value={formData.namaLayanan}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, namaLayanan: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2425,7 +2633,9 @@ function AktivasiClientsSection() {
                   <input
                     name="kapasitasLayanan"
                     value={formData.kapasitasLayanan}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, kapasitasLayanan: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2434,7 +2644,7 @@ function AktivasiClientsSection() {
                   <input
                     name="vlanId"
                     value={formData.vlanId}
-                    onChange={handleInputChange}
+                    onChange={(event) => setFormData((prev) => ({ ...prev, vlanId: event.target.value }))}
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2443,7 +2653,9 @@ function AktivasiClientsSection() {
                   <input
                     name="namaMetro"
                     value={formData.namaMetro}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, namaMetro: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2452,7 +2664,9 @@ function AktivasiClientsSection() {
                   <input
                     name="siteMetro"
                     value={formData.siteMetro}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, siteMetro: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2461,7 +2675,9 @@ function AktivasiClientsSection() {
                   <input
                     name="kapasitasMetro"
                     value={formData.kapasitasMetro}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, kapasitasMetro: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2470,7 +2686,9 @@ function AktivasiClientsSection() {
                   <input
                     name="ipAddress"
                     value={formData.ipAddress}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, ipAddress: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2479,7 +2697,9 @@ function AktivasiClientsSection() {
                   <input
                     name="ipGateway"
                     value={formData.ipGateway}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, ipGateway: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2488,7 +2708,9 @@ function AktivasiClientsSection() {
                   <input
                     name="routerGateway"
                     value={formData.routerGateway}
-                    onChange={handleInputChange}
+                    onChange={(event) =>
+                      setFormData((prev) => ({ ...prev, routerGateway: event.target.value }))
+                    }
                     required
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   />
@@ -2497,8 +2719,7 @@ function AktivasiClientsSection() {
               <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={closeForm}
-                  disabled={submitting}
+                  onClick={handleCloseForm}
                   className="inline-flex items-center gap-2 rounded border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-primary hover:text-primary"
                 >
                   Batal
@@ -2506,7 +2727,7 @@ function AktivasiClientsSection() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="inline-flex items-center gap-2 rounded border border-primary bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex items-center gap-2 rounded border border-primary bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition hover:border-primary/80 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {submitting ? (
                     <>
@@ -4109,17 +4330,18 @@ function RouterMetricItem({ label, value, emphasize = false }: { label: string; 
   )
 }
 
-function NavItem({ icon, label, active = false, onClick }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void }) {
+function NavItem({ icon, label, active = false, onClick, isCollapsed }: { icon: React.ReactNode; label: string; active?: boolean; onClick?: () => void, isCollapsed?: boolean }) {
   return (
     <button
       type="button"
       className={`flex w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
         active ? "border border-primary/50 bg-primary/20 text-primary" : "text-muted-foreground hover:bg-secondary/50 hover:text-foreground"
-      }`}
+      } ${isCollapsed ? 'justify-center' : ''}`}
       onClick={onClick}
+      title={isCollapsed ? label : undefined}
     >
       {icon}
-      {label}
+      {!isCollapsed && <span>{label}</span>}
     </button>
   )
 }
