@@ -1,4 +1,4 @@
-// File: C:\Users\Tri Hartanto\Downloads\GABUTAN MASS HARR\ISOLIR\PANELNOC2\app\(protected)\page.tsx
+// File: C:\Users\Tri Hartanto\Downloads\GABUTAN MASS HARR\ISOLIR\PANELNOC2 - Copy\app\(protected)\page.tsx
 import * as entry from '../../../../app/(protected)/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

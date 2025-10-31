@@ -1,3 +1,17 @@
 {
+  "/_not-found/page": "app/_not-found/page.js",
+  "/api/access-points/import/route": "app/api/access-points/import/route.js",
+  "/api/aktivasi-clients/route": "app/api/aktivasi-clients/route.js",
+  "/api/aktivasi-personal/route": "app/api/aktivasi-personal/route.js",
+  "/api/clients/route": "app/api/clients/route.js",
+  "/api/ip-addresses/route": "app/api/ip-addresses/route.js",
+  "/api/login/route": "app/api/login/route.js",
+  "/api/logout/route": "app/api/logout/route.js",
+  "/api/access-points/route": "app/api/access-points/route.js",
+  "/api/pending/route": "app/api/pending/route.js",
+  "/api/redaman/route": "app/api/redaman/route.js",
+  "/api/routers/route": "app/api/routers/route.js",
+  "/login/page": "app/login/page.js",
+  "/api/olt-list/route": "app/api/olt-list/route.js",
   "/(protected)/page": "app/(protected)/page.js"
 }

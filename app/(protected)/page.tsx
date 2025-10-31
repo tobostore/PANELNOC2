@@ -1054,7 +1054,7 @@ export default function NOCPanel() {
           <div className="flex items-center gap-3">
             <Image src="/resouce/logo/cut-logo.png" alt="NOC Panel" width={40} height={40} className="h-10 w-10 rounded-lg object-cover" />
             <div>
-              <h1 className="text-xl font-bold">NOC Panel</h1>
+              <h1 className="text-xl font-bold">PT. GLOBAL MEDIA DATA PRIMA</h1>
               <p className="text-xs text-muted-foreground">Network Operations Center</p>
             </div>
           </div>
@@ -1091,18 +1091,25 @@ export default function NOCPanel() {
               onClick={() => setSelectedSection("IP Publik")}
               isCollapsed={isSidebarCollapsed}
             /> */}
-            <NavItem
+            {/* <NavItem
               icon={<Wifi className="h-4 w-4" />}
               label="Access Points"
               active={selectedSection === "Access Points"}
               onClick={() => setSelectedSection("Access Points")}
               isCollapsed={isSidebarCollapsed}
-            />
+            /> */}
             <NavItem
               icon={<Users className="h-4 w-4" />}
-              label="Clients Personal"
+              label="Isolir Personal"
               active={selectedSection === "Clients"}
               onClick={() => setSelectedSection("Clients")}
+              isCollapsed={isSidebarCollapsed}
+            />
+            <NavItem
+              icon={<Zap className="h-4 w-4" />}
+              label="Olt Personal"
+              active={selectedSection === "Aktivasi Personal"}
+              onClick={() => setSelectedSection("Aktivasi Personal")}
               isCollapsed={isSidebarCollapsed}
             />
             <NavItem
@@ -1146,6 +1153,8 @@ export default function NOCPanel() {
             <AccessPointsSection />
           ) : selectedSection === "Aktivasi Reseller" ? (
             <AktivasiClientsSection />
+          ) : selectedSection === "Aktivasi Personal" ? (
+            <AktivasiClientPersonalSection />
           ) : selectedSection === "Clients" ? (
             <ClientsSection />
           ) : selectedSection === "Pending" ? (
@@ -1171,6 +1180,99 @@ export default function NOCPanel() {
         </main>
       </div>
     </div>
+  )
+}
+
+function RedamanSection() {
+  const [username, setUsername] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [result, setResult] = useState<any>(null)
+  
+  const handleCheckRedaman = async (e: FormEvent) => {
+    e.preventDefault()
+    
+    if (!username) {
+      setError("Username PPPoE harus diisi")
+      return
+    }
+    
+    setLoading(true)
+    setError(null)
+    setResult(null)
+
+    try {
+      const response = await fetch('/api/redaman', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username }),
+      })
+
+      const data = await response.json()
+
+      if (data.status === 'error') {
+        throw new Error(data.message || 'Gagal mengecek redaman')
+      }
+
+      setResult(data.data)
+    } catch (err: any) {
+      setError(err?.message || 'Gagal mengecek redaman')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-bold">Cek Redaman</h2>
+      </div>
+
+      <form onSubmit={handleCheckRedaman} className="space-y-4 rounded border border-border bg-card p-4">
+        <div>
+          <label htmlFor="username" className="block text-sm font-medium text-foreground">
+            Masukan Username PPPoE
+          </label>
+          <input
+            type="text"
+            id="username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            className="mt-1 block w-full rounded border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            placeholder="Masukkan username PPPoE"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:border-primary/80 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+        >
+          {loading ? (
+            <>
+              <RefreshCcw className="h-4 w-4 animate-spin" />
+              Mengecek...
+            </>
+          ) : (
+            "Cek Redaman"
+          )}
+        </button>
+      </form>
+
+      {error && (
+        <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+          ❌ {error}
+        </div>
+      )}
+
+      {result && (
+        <div className="overflow-auto rounded border border-border bg-card p-4">
+          <pre className="whitespace-pre-wrap text-sm">{JSON.stringify(result, null, 2)}</pre>
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -2748,6 +2850,1042 @@ function AktivasiClientsSection() {
   )
 }
 
+function AktivasiClientPersonalSection() {
+  const [formData, setFormData] = useState({
+    sn: "",
+    port: "",
+    name: "",
+    desc: "",
+    vlan: "",
+    pppoe_user: "",
+    pppoe_pass: "",
+    profile: "",
+    router: "",
+    mac: "",
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
+  const [activationSuccess, setActivationSuccess] = useState<{
+    pppoe_user: string;
+    pppoe_pass: string;
+    vlan: string;
+    mediaType: string;
+    olt?: string;
+    type?: string;
+    router?: string;
+    interface?: string;
+    onuInterface?: string;
+  } | null>(null);
+  const [oncfgLoading, setOncfgLoading] = useState(false);
+  const [oncfgError, setOncfgError] = useState<string | null>(null);
+  const [oncfgResult, setOncfgResult] = useState<string | null>(null);
+  
+  // OLT selection state
+  type OltItem = { id: string | number; name: string }
+  const [oltList, setOltList] = useState<OltItem[]>([])
+  const [selectedOlt, setSelectedOlt] = useState<string>("")
+  const [oltLoading, setOltLoading] = useState(false)
+  const [oltError, setOltError] = useState<string | null>(null)
+  const [mediaType, setMediaType] = useState<'gpon' | 'epon' | ''>('')
+  const [showMediaChooser, setShowMediaChooser] = useState(false)
+  
+  // Router selection state
+  type RouterItem = { id: number; name: string }
+  const [routerList, setRouterList] = useState<RouterItem[]>([])
+  const [routerLoading, setRouterLoading] = useState(false)
+  
+  // Collapsible form state
+  const [formOpen, setFormOpen] = useState(false);
+  // For animation
+  const [formVisible, setFormVisible] = useState(false);
+  
+  // State for redaman check
+  const [redamanCheckUsername, setRedamanCheckUsername] = useState("");
+  const [redamanLoading, setRedamanLoading] = useState(false);
+  const [redamanError, setRedamanError] = useState<string | null>(null);
+  const [redamanResult, setRedamanResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (formOpen) {
+      setFormVisible(true);
+    } else {
+      // Delay hiding for animation
+      const timeout = setTimeout(() => setFormVisible(false), 300);
+      return () => clearTimeout(timeout);
+    }
+  }, [formOpen]);
+
+  // Try to fetch OLT list from API, fallback to a small local list
+  useEffect(() => {
+    let mounted = true
+    const LOCAL_FALLBACK: OltItem[] = [
+      { id: "olt-1", name: "OLT-1 (default)" },
+      { id: "olt-2", name: "OLT-2" },
+    ]
+
+    async function loadOlts() {
+      setOltLoading(true)
+      setOltError(null)
+      try {
+        const resp = await fetch('/api/olt-list')
+        if (!resp.ok) {
+          throw new Error(`Status ${resp.status}`)
+        }
+        const payload = await resp.json()
+        // Expect payload to be array or { items: [] }
+        const items: any[] = Array.isArray(payload) ? payload : payload?.items ?? []
+        if (!mounted) return
+        if (items.length === 0) {
+          setOltList(LOCAL_FALLBACK)
+          setSelectedOlt(String(LOCAL_FALLBACK[0].id))
+        } else {
+          const normalized = items.map((it) => ({ id: it.id ?? it.name ?? String(it), name: it.name ?? String(it) }))
+          setOltList(normalized)
+          setSelectedOlt(String(normalized[0].id))
+          // determine default media based on name heuristics
+          const firstName = (normalized[0].name ?? '').toLowerCase()
+          if (firstName.includes('tangerang')) {
+            setMediaType('gpon')
+            setShowMediaChooser(false)
+          } else if (firstName.includes('kbm') && firstName.includes('2')) {
+            setMediaType('epon')
+            setShowMediaChooser(false)
+          } else if (firstName.includes('kbm') && firstName.includes('1')) {
+            // ambiguous, ask user
+            setMediaType('')
+            setShowMediaChooser(true)
+          } else {
+            // default to GPON but ask choice
+            setMediaType('gpon')
+            setShowMediaChooser(true)
+          }
+        }
+      } catch (err) {
+        if (!mounted) return
+        setOltList(LOCAL_FALLBACK)
+        setSelectedOlt(String(LOCAL_FALLBACK[0].id))
+        setOltError(err instanceof Error ? err.message : String(err))
+      } finally {
+        if (mounted) setOltLoading(false)
+      }
+    }
+
+    void loadOlts()
+    return () => { mounted = false }
+  }, [])
+
+  // update mediaType when user selects another OLT
+  useEffect(() => {
+    if (!selectedOlt || oltList.length === 0) return
+    const found = oltList.find((o) => String(o.id) === String(selectedOlt))
+    if (!found) return
+    const name = (found.name ?? '').toUpperCase()
+    
+    // Auto-set router based on OLT
+    let autoRouter = ''
+    
+    // ZTE_TANGERANG - GPON only
+    if (name.includes('ZTE_TANGERANG') || name.includes('TANGERANG')) {
+      setMediaType('gpon')
+      setShowMediaChooser(false)
+      autoRouter = 'Bitbox_Tangerang'
+    } 
+    // OLT_KBM_2 - EPON only
+    else if (name.includes('OLT_KBM_2') || (name.includes('KBM') && name.includes('2'))) {
+      setMediaType('epon')
+      setShowMediaChooser(false)
+      autoRouter = 'DIST_A_KBM'
+    } 
+    // OLT_KBM_1 - User can choose between GPON and EPON
+    else if (name.includes('OLT_KBM_1') || (name.includes('KBM') && name.includes('1'))) {
+      // Show chooser and let user decide
+      setShowMediaChooser(true)
+      // Default to GPON if not set
+      setMediaType((prev) => prev || 'gpon')
+      autoRouter = 'DIST_A_KBM'
+    } 
+    // General rule: if name contains KBM, use DIST_A_KBM
+    else if (name.includes('KBM')) {
+      autoRouter = 'DIST_A_KBM'
+      setShowMediaChooser(true)
+      setMediaType((prev) => prev || 'gpon')
+    }
+    else {
+      // For unknown OLT, allow user to choose
+      setShowMediaChooser(true)
+      setMediaType((prev) => prev || 'gpon')
+    }
+    
+    // Set router automatically if detected
+    if (autoRouter) {
+      setFormData((prev) => ({ ...prev, router: autoRouter }))
+    }
+  }, [selectedOlt, oltList])
+
+  // Fetch router list
+  useEffect(() => {
+    let mounted = true
+    
+    async function loadRouters() {
+      setRouterLoading(true)
+      try {
+        const resp = await fetch('/api/routers')
+        if (!resp.ok) {
+          throw new Error(`Status ${resp.status}`)
+        }
+        const payload = await resp.json()
+        if (!mounted) return
+        
+        if (payload.status === 'ok' && Array.isArray(payload.routers)) {
+          setRouterList(payload.routers)
+        }
+      } catch (error) {
+        console.error('[routers] Error loading routers:', error)
+        // Silent fail, router list will be empty
+      } finally {
+        if (mounted) setRouterLoading(false)
+      }
+    }
+    
+    loadRouters()
+    return () => { mounted = false }
+  }, [])
+
+  const handleInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = event.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleFetchOncfg = async (forceMediaType: 'gpon' | 'epon') => {
+    setOncfgError(null);
+    setOncfgResult(null);
+    const sn = formData.sn?.trim();
+
+    // Require selecting OLT first
+    if (!selectedOlt) {
+      setOncfgError('Pilih OLT terlebih dahulu.');
+      return;
+    }
+
+    setOncfgLoading(true);
+    try {
+      // Add timeout to the fetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      const base = `/api/aktivasi-personal`;
+      const q = new URLSearchParams();
+      q.set('uncfg', 'true')
+      // Send OLT parameter and force media type - backend will handle the lookup
+      q.set('olt', String(selectedOlt))
+      q.set('media', forceMediaType) // Force the media type based on button clicked
+      // Include sn or mac if present (not required for uncfg)
+      if (sn) q.set('sn', sn)
+      if (forceMediaType === 'epon' && (formData as any).mac) {
+        q.set('mac', (formData as any).mac)
+      }
+      const url = `${base}?${q.toString()}`
+      
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        }
+      });
+
+      clearTimeout(timeoutId);
+      
+      let responseData;
+      try {
+        const text = await response.text();
+        try {
+          // Try to parse as JSON first
+          responseData = JSON.parse(text);
+        } catch {
+          // If not JSON, use text as is
+          responseData = { details: text };
+        }
+      } catch (readError) {
+        throw new Error("Gagal membaca response dari server");
+      }
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("API endpoint tidak ditemukan. Mohon periksa konfigurasi server.");
+        }
+        if (response.status === 503 || response.status === 504) {
+          throw new Error(responseData?.message || "Server API tidak dapat diakses atau timeout. Silakan coba lagi.");
+        }
+        throw new Error(
+          responseData?.message || 
+          responseData?.error || 
+          responseData?.details || 
+          `Error ${response.status}: ${response.statusText}`
+        );
+      }
+
+      if (responseData && typeof responseData === 'object' && responseData.redaman !== undefined) {
+        const redaman = responseData.redaman;
+        // Format redaman output nicely
+        const display = typeof redaman === 'object' 
+          ? (redaman.output ?? JSON.stringify(redaman, null, 2)) 
+          : String(redaman);
+        setOncfgResult(display);
+      } else if (responseData?.output) {
+        setOncfgResult(String(responseData.output));
+      } else if (responseData?.details) {
+        setOncfgResult(String(responseData.details));
+      } else {
+        setOncfgResult(typeof responseData === 'object' 
+          ? JSON.stringify(responseData, null, 2) 
+          : String(responseData));
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          setOncfgError("Request timeout setelah 30 detik. Silakan coba lagi.");
+        } else {
+          setOncfgError(err.message);
+        }
+      } else {
+        setOncfgError("Terjadi kesalahan tidak dikenal.");
+      }
+      console.error("[oncfg] error:", err);
+    } finally {
+      setOncfgLoading(false);
+    }
+  }
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    setInfo(null);
+
+    // Ensure OLT selected before proceeding
+    if (!selectedOlt) {
+      setError('Pilih OLT terlebih dahulu.');
+      setSubmitting(false);
+      return;
+    }
+
+    const foundOlt = oltList.find((o) => String(o.id) === String(selectedOlt))
+    const oltName = foundOlt?.name ?? String(selectedOlt)
+
+    // Build parameters based on media type
+    const params = new URLSearchParams();
+    params.set('olt_name', oltName);
+    params.set('port', formData.port);
+    params.set('name', formData.name);
+    params.set('vlan', formData.vlan);
+    params.set('pppoe_user', formData.pppoe_user);
+    params.set('pppoe_pass', formData.pppoe_pass);
+    params.set('profile', formData.profile);
+    params.set('router', formData.router);
+    
+    if (mediaType === 'epon') {
+      // EPON uses MAC address
+      if ((formData as any).mac) {
+        params.set('mac', (formData as any).mac);
+      }
+    } else {
+      // GPON uses Serial Number
+      params.set('sn', formData.sn);
+    }
+
+    try {
+      // Add timeout to the fetch
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
+      const response = await fetch(`/api/aktivasi-personal?${params.toString()}`, {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          'Cache-Control': 'no-cache',
+        }
+      });
+
+      clearTimeout(timeoutId);
+      
+      let responseData;
+      try {
+        const text = await response.text();
+        try {
+          // Try to parse as JSON first
+          responseData = JSON.parse(text);
+        } catch {
+          // If not JSON, use text as is
+          responseData = { details: text };
+        }
+      } catch (readError) {
+        throw new Error("Gagal membaca response dari server");
+      }
+
+      if (!response.ok) {
+        if (response.status === 409) {
+          throw new Error(responseData?.message || "Konflik: SN, Port, atau VLAN sudah digunakan");
+        }
+        if (response.status === 404) {
+          throw new Error("API endpoint tidak ditemukan. Mohon periksa konfigurasi server.");
+        }
+        if (response.status === 503 || response.status === 504) {
+          throw new Error(responseData?.message || "Server API tidak dapat diakses atau timeout. Silakan coba lagi.");
+        }
+        throw new Error(
+          responseData?.message || 
+          responseData?.error || 
+          responseData?.details || 
+          `Error ${response.status}: ${response.statusText}`
+        );
+      }
+
+      // Check if activation was successful and extract username/password
+      if (responseData && typeof responseData === 'object') {
+        // Extract username and password from the response
+        let extractedUsername = formData.pppoe_user;
+        let extractedPassword = formData.pppoe_pass;
+        let extractedVlan = formData.vlan;
+        
+        // Try to get from mikrotik response
+        if (responseData.mikrotik?.success) {
+          const message = responseData.mikrotik.message || '';
+          const match = message.match(/User PPPoE (.+?) berhasil/);
+          if (match) {
+            extractedUsername = match[1];
+          }
+        }
+        
+        // Try to extract from logs
+        if (Array.isArray(responseData.logs)) {
+          const wanIpLog = responseData.logs.find((log: any) => 
+            log.cmd && log.cmd.includes('wan-ip') && log.cmd.includes('username')
+          );
+          if (wanIpLog?.cmd) {
+            const usernameMatch = wanIpLog.cmd.match(/username\s+(\S+)/);
+            const passwordMatch = wanIpLog.cmd.match(/password\s+(\S+)/);
+            if (usernameMatch) extractedUsername = usernameMatch[1];
+            if (passwordMatch) extractedPassword = passwordMatch[1];
+          }
+        }
+        
+        // Get VLAN from response if available
+        if (responseData.vlan) {
+          extractedVlan = responseData.vlan;
+        }
+        
+        // Store activation success data for display
+        setActivationSuccess({
+          pppoe_user: extractedUsername,
+          pppoe_pass: extractedPassword,
+          vlan: extractedVlan,
+          mediaType: mediaType,
+          olt: responseData.olt || foundOlt?.name || '',
+          type: responseData.type || mediaType.toUpperCase(),
+          router: responseData.router || formData.router,
+          interface: responseData.interface || '',
+          onuInterface: responseData.onuInterface || '',
+        });
+        
+        setInfo('Aktivasi berhasil!');
+      } else {
+        setInfo('Aktivasi berhasil!');
+      }
+      
+      // Reset form on success
+      setFormData({
+        sn: "",
+        port: "",
+        name: "",
+        desc: "",
+        vlan: "",
+        pppoe_user: "",
+        pppoe_pass: "",
+        profile: "",
+        router: "",
+        mac: "",
+      });
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          setError("Request timeout setelah 30 detik. Silakan coba lagi.");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("Terjadi kesalahan tidak dikenal.");
+      }
+      console.error("[aktivasi-personal] error:", err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section className="rounded border border-border bg-card p-5 space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Aktivasi Client Personal</h2>
+          <p className="text-xs text-muted-foreground"></p>
+        </div>
+      </div>
+
+      <button
+        className="mb-4 rounded border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:border-primary/80 hover:bg-primary/90"
+        onClick={() => setFormOpen((prev) => !prev)}
+        type="button"
+      >
+        {formOpen ? "Tutup Form Aktivasi" : "Buka Form Aktivasi"}
+      </button>
+
+      {/* Animated collapse/expand for the form */}
+      <div
+        style={{
+          maxHeight: formOpen ? 2000 : 0,
+          opacity: formOpen ? 1 : 0,
+          overflow: 'hidden',
+          transition: 'max-height 0.3s cubic-bezier(0.4,0,0.2,1), opacity 0.3s cubic-bezier(0.4,0,0.2,1)',
+        }}
+        aria-hidden={!formOpen}
+      >
+      {formVisible && (
+        <>
+          {error && <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">❌ {error}</div>}
+
+          {/* Activation Success Display */}
+          {activationSuccess && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
+                <div className="mb-3 flex items-center gap-2 border-b border-emerald-500/20 pb-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+                  <h4 className="font-semibold text-emerald-600">Aktivasi {activationSuccess.type || activationSuccess.mediaType.toUpperCase()} Berhasil!</h4>
+                </div>
+                
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {activationSuccess.olt && (
+                    <div className="rounded bg-background/50 p-3">
+                      <div className="mb-1 flex items-center gap-2">
+                        <Server className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">OLT</span>
+                      </div>
+                      <span className="font-mono text-sm font-semibold text-foreground">{activationSuccess.olt}</span>
+                    </div>
+                  )}
+                  
+                  {activationSuccess.router && (
+                    <div className="rounded bg-background/50 p-3">
+                      <div className="mb-1 flex items-center gap-2">
+                        <Network className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">Router</span>
+                      </div>
+                      <span className="font-mono text-sm font-semibold text-foreground">{activationSuccess.router}</span>
+                    </div>
+                  )}
+                  
+                  {activationSuccess.interface && (
+                    <div className="rounded bg-background/50 p-3">
+                      <div className="mb-1 flex items-center gap-2">
+                        <Cpu className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">Interface</span>
+                      </div>
+                      <span className="font-mono text-sm font-semibold text-foreground">{activationSuccess.interface}</span>
+                    </div>
+                  )}
+                  
+                  {activationSuccess.onuInterface && (
+                    <div className="rounded bg-background/50 p-3">
+                      <div className="mb-1 flex items-center gap-2">
+                        <Zap className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-xs font-medium text-muted-foreground">ONU Interface</span>
+                      </div>
+                      <span className="font-mono text-sm font-semibold text-foreground">{activationSuccess.onuInterface}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Main credentials - highlighted */}
+                <div className="mt-4 space-y-2 rounded-lg border border-primary/30 bg-primary/5 p-4">
+                  <div className="mb-2 flex items-center gap-2 border-b border-primary/20 pb-2">
+                    <Unlock className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold text-primary">Kredensial PPPoE</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between rounded bg-background/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">Username:</span>
+                    </div>
+                    <span className="font-mono text-sm font-bold text-primary">{activationSuccess.pppoe_user}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between rounded bg-background/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <Unlock className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">Password:</span>
+                    </div>
+                    <span className="font-mono text-sm font-bold text-primary">{activationSuccess.pppoe_pass}</span>
+                  </div>
+                  
+                  <div className="flex items-center justify-between rounded bg-background/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <Network className="h-4 w-4 text-muted-foreground" />
+                      <span className="text-sm font-medium text-muted-foreground">VLAN:</span>
+                    </div>
+                    <span className="font-mono text-sm font-bold text-primary">{activationSuccess.vlan}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <FormField label="OLT" required>
+                <select
+                  name="olt"
+                  value={selectedOlt}
+                  onChange={(e) => setSelectedOlt(e.target.value)}
+                  className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                >
+                  {oltLoading ? (
+                    <option>Memuat OLT...</option>
+                  ) : (
+                    oltList.map((olt) => (
+                      <option key={String(olt.id)} value={String(olt.id)}>
+                        {olt.name}
+                      </option>
+                    ))
+                  )}
+                </select>
+                {oltError ? <div className="mt-1 text-xs text-red-500">{oltError}</div> : null}
+              </FormField>
+
+              {showMediaChooser ? (
+                <FormField label="Jenis OLT" required>
+                  <div className="flex items-center gap-3">
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input type="radio" name="media" value="gpon" checked={mediaType === 'gpon'} onChange={() => setMediaType('gpon')} />
+                      GPON
+                    </label>
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input type="radio" name="media" value="epon" checked={mediaType === 'epon'} onChange={() => setMediaType('epon')} />
+                      EPON
+                    </label>
+                  </div>
+                </FormField>
+              ) : null}
+
+              {mediaType === 'gpon' && (
+                <FormField label="SN" required>
+                  <input name="sn" value={formData.sn} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                </FormField>
+              )}
+
+              {mediaType === 'epon' && (
+                <FormField label="MAC" required>
+                  <input name="mac" value={(formData as any).mac} onChange={handleInputChange} required placeholder="d05f.af79.494f" className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                </FormField>
+              )}
+              <FormField label="Port" required>
+                <input name="port" value={formData.port} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+              </FormField>
+              <FormField label="Name" required>
+                <input name="name" value={formData.name} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+              </FormField>
+              {mediaType !== 'epon' && (
+                <FormField label="Description" required>
+                  <input name="desc" value={formData.desc} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+                </FormField>
+              )}
+              <FormField label="VLAN" required>
+                <input name="vlan" value={formData.vlan} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+              </FormField>
+              <FormField label="PPPoE User" required>
+                <input name="pppoe_user" value={formData.pppoe_user} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+              </FormField>
+              <FormField label="PPPoE Pass" required>
+                <input name="pppoe_pass" value={formData.pppoe_pass} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+              </FormField>
+              <FormField label="Profile" required>
+                <input name="profile" value={formData.profile} onChange={handleInputChange} required className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none" />
+              </FormField>
+              <FormField label="Router" required>
+                <select 
+                  name="router" 
+                  value={formData.router} 
+                  onChange={(e) => handleInputChange(e as any)} 
+                  required 
+                  className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
+                  disabled={routerLoading}
+                >
+                  <option value="">
+                    {routerLoading ? 'Memuat router...' : 'Pilih Router'}
+                  </option>
+                  {routerList.map((router) => (
+                    <option key={router.id} value={router.name}>
+                      {router.name}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => handleFetchOncfg('gpon')}
+                disabled={oncfgLoading}
+                className="inline-flex items-center gap-2 rounded border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-600 hover:border-emerald-500/60 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {oncfgLoading ? (
+                  <>
+                    <RefreshCcw className="h-4 w-4 animate-spin" />
+                    Memuat...
+                  </>
+                ) : (
+                  <>
+                    <Server className="h-4 w-4" />
+                    Lihat Oncfg GPON
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleFetchOncfg('epon')}
+                disabled={oncfgLoading}
+                className="inline-flex items-center gap-2 rounded border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm font-medium text-blue-600 hover:border-blue-500/60 hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {oncfgLoading ? (
+                  <>
+                    <RefreshCcw className="h-4 w-4 animate-spin" />
+                    Memuat...
+                  </>
+                ) : (
+                  <>
+                    <Network className="h-4 w-4" />
+                    Lihat Oncfg EPON
+                  </>
+                )}
+              </button>
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="inline-flex items-center gap-2 rounded border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:border-primary/80 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {submitting ? (
+                  <>
+                    <RefreshCcw className="h-4 w-4 animate-spin" />
+                    Mengaktivasi...
+                  </>
+                ) : (
+                  "Aktivasi Client"
+                )}
+              </button>
+            </div>
+          </form>
+
+          {/* Oncfg result area - shown below the form */}
+          {oncfgError && (
+            <div className="mt-3 rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">❌ {oncfgError}</div>
+          )}
+
+          {oncfgResult !== null && (() => {
+            try {
+              const parsedResult = JSON.parse(oncfgResult);
+              
+              // Check if it's the expected format with onu_list
+              if (parsedResult && typeof parsedResult === 'object') {
+                const { olt, total, command, onu_list } = parsedResult;
+                
+                return (
+                  <div className="mt-4 space-y-4">
+                    {/* Header Card */}
+                    <div className="rounded-lg border border-primary/40 bg-primary/5 p-4">
+                      <div className="mb-3 flex items-center gap-2 border-b border-primary/20 pb-2">
+                        <Server className="h-5 w-5 text-primary" />
+                        <h4 className="font-semibold text-primary">Informasi ONU Tidak Terdaftar</h4>
+                      </div>
+                      
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                        <div className="rounded bg-background/50 p-3">
+                          <div className="mb-1 flex items-center gap-2">
+                            <Database className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-medium text-muted-foreground">OLT</span>
+                          </div>
+                          <span className="font-mono text-sm font-semibold text-foreground">{olt || '-'}</span>
+                        </div>
+                        
+                        <div className="rounded bg-background/50 p-3">
+                          <div className="mb-1 flex items-center gap-2">
+                            <Network className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-medium text-muted-foreground">Total ONU</span>
+                          </div>
+                          <span className="font-mono text-sm font-semibold text-foreground">{total || 0}</span>
+                        </div>
+                        
+                        <div className="rounded bg-background/50 p-3">
+                          <div className="mb-1 flex items-center gap-2">
+                            <Cpu className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs font-medium text-muted-foreground">Command</span>
+                          </div>
+                          <span className="font-mono text-xs text-foreground">{command || '-'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* ONU List */}
+                    {Array.isArray(onu_list) && onu_list.length > 0 ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <Zap className="h-4 w-4 text-emerald-500" />
+                          <h5 className="text-sm font-semibold text-foreground">Daftar ONU ({onu_list.length})</h5>
+                        </div>
+                        
+                        {onu_list.map((onu: any, index: number) => (
+                          <div 
+                            key={index}
+                            className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4 transition hover:border-emerald-500/60"
+                          >
+                            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-emerald-600">
+                              <CheckCircle2 className="h-4 w-4" />
+                              ONU #{index + 1}
+                            </div>
+                            
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                              <div className="rounded bg-background/50 p-2">
+                                <div className="mb-1 text-xs text-muted-foreground">OLT</div>
+                                <div className="font-mono text-sm font-medium text-foreground">{onu.olt || '-'}</div>
+                              </div>
+                              
+                              <div className="rounded bg-background/50 p-2">
+                                <div className="mb-1 text-xs text-muted-foreground">Interface</div>
+                                <div className="font-mono text-sm font-medium text-foreground">{onu.interface || '-'}</div>
+                              </div>
+                              
+                              <div className="rounded bg-background/50 p-2">
+                                <div className="mb-1 text-xs text-muted-foreground">Serial Number</div>
+                                <div className="font-mono text-sm font-semibold text-primary">{onu.sn || '-'}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded border border-amber-500/40 bg-amber-500/5 px-4 py-3 text-sm text-amber-600">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4" />
+                          Tidak ada ONU yang belum terdaftar
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+              
+              // Fallback to original display if format is different
+              return (
+                <div className="mt-3 overflow-auto rounded border border-border bg-background p-3 text-sm">
+                  <pre className="whitespace-pre-wrap">{oncfgResult}</pre>
+                </div>
+              );
+            } catch (e) {
+              // If parsing fails, show raw text
+              return (
+                <div className="mt-3 overflow-auto rounded border border-border bg-background p-3 text-sm">
+                  <pre className="whitespace-pre-wrap">{oncfgResult}</pre>
+                </div>
+              );
+            }
+          })()}
+        </>
+      )}
+      </div>
+
+      {/* Separator with spacing */}
+      <div className="my-8 border-t border-border"></div>
+
+      {/* Redaman check section - separated from activation form */}
+      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
+        <div className="mb-4 flex items-center gap-2">
+          <Wifi className="h-5 w-5 text-primary" />
+          <h3 className="text-lg font-semibold">Cek Redaman</h3>
+        </div>
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={formData.pppoe_user}
+              placeholder="Masukan Username PPPoE"
+              onChange={(e) => setFormData(prev => ({ ...prev, pppoe_user: e.target.value }))}
+              className="flex-1 rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none"
+            />
+            <button
+              type="button"
+              disabled={!formData.pppoe_user || redamanLoading}
+              onClick={async () => {
+                setRedamanError(null);
+                setRedamanResult(null);
+                setRedamanLoading(true);
+
+                try {
+                  const response = await fetch('/api/redaman', {
+                    method: 'POST',
+                    headers: {
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                      username: formData.pppoe_user 
+                    }),
+                  });
+
+                  const data = await response.json();
+
+                  if (data.status === 'error') {
+                    throw new Error(data.message || 'Gagal mengecek redaman');
+                  }
+
+                  setRedamanResult(data.data);
+                } catch (err: any) {
+                  setRedamanError(err?.message || 'Gagal mengecek redaman');
+                } finally {
+                  setRedamanLoading(false);
+                }
+              }}
+              className="inline-flex items-center gap-2 rounded border border-primary bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition hover:border-primary/80 hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-70"
+            >
+              {redamanLoading ? (
+                <>
+                  <RefreshCcw className="h-4 w-4 animate-spin" />
+                  Mengecek...
+                </>
+              ) : (
+                <>
+                  <Wifi className="h-4 w-4" />
+                  Cek Redaman
+                </>
+              )}
+            </button>
+          </div>
+
+          {redamanError && (
+            <div className="rounded border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+              ❌ {redamanError}
+            </div>
+          )}
+
+          {redamanResult && (
+            <div className="space-y-3">
+              <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/5 p-4">
+                <div className="mb-3 flex items-center gap-2 border-b border-emerald-500/20 pb-2">
+                  <Wifi className="h-5 w-5 text-emerald-500" />
+                  <h4 className="font-semibold text-emerald-600">Informasi Redaman</h4>
+                </div>
+                
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-start justify-between rounded bg-background/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-muted-foreground">Nama Client:</span>
+                    </div>
+                    <span className="font-mono font-semibold text-foreground">{formData.pppoe_user || '-'}</span>
+                  </div>
+                  
+                  <div className="flex items-start justify-between rounded bg-background/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <Server className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-muted-foreground">OLT:</span>
+                    </div>
+                    <span className="font-mono font-semibold text-foreground">{redamanResult.olt || '-'}</span>
+                  </div>
+                  
+                  <div className="flex items-start justify-between rounded bg-background/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <Database className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-muted-foreground">Serial Number:</span>
+                    </div>
+                    <span className="font-mono font-semibold text-foreground">{redamanResult.sn || '-'}</span>
+                  </div>
+                  
+                  <div className="flex items-start justify-between rounded bg-background/50 p-3">
+                    <div className="flex items-center gap-2">
+                      <Network className="h-4 w-4 text-muted-foreground" />
+                      <span className="font-medium text-muted-foreground">ONU Interface:</span>
+                    </div>
+                    <span className="font-mono font-semibold text-foreground">{redamanResult.onu || '-'}</span>
+                  </div>
+                  
+                  <div className="rounded border border-primary/20 bg-primary/5 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-primary" />
+                      <span className="font-semibold text-primary">Rx Power (Redaman):</span>
+                    </div>
+                    {redamanResult.power ? (
+                      <div className="ml-6 font-mono text-base font-bold text-primary">
+                        {(() => {
+                          // Extract power value from the power string
+                          const match = redamanResult.power.match(/-?\d+\.\d+\(dbm\)/);
+                          if (match) {
+                            const powerValue = parseFloat(match[0]);
+                            const colorClass = powerValue >= -25 
+                              ? 'text-emerald-600' 
+                              : powerValue >= -28 
+                              ? 'text-amber-600' 
+                              : 'text-red-600';
+                            return <span className={colorClass}>{match[0]}</span>;
+                          }
+                          return <span className="text-primary">{redamanResult.power}</span>;
+                        })()}
+                      </div>
+                    ) : (
+                      <span className="ml-6 text-muted-foreground">-</span>
+                    )}
+                  </div>
+                  
+                  {/* Signal Quality Indicator */}
+                  {redamanResult.power && (() => {
+                    const match = redamanResult.power.match(/-?\d+\.\d+/);
+                    if (match) {
+                      const powerValue = parseFloat(match[0]);
+                      let status = '';
+                      let statusColor = '';
+                      let statusIcon = null;
+                      
+                      if (powerValue >= -25) {
+                        status = 'Sangat Baik';
+                        statusColor = 'text-emerald-600 bg-emerald-500/10 border-emerald-500/30';
+                        statusIcon = <CheckCircle2 className="h-4 w-4" />;
+                      } else if (powerValue >= -25) {
+                        status = 'jelek';
+                        statusColor = 'text-amber-600 bg-amber-500/10 border-amber-500/30';
+                        statusIcon = <AlertTriangle className="h-4 w-4" />;
+                      } else {
+                        status = 'Lemah';
+                        statusColor = 'text-red-600 bg-red-500/10 border-red-500/30';
+                        statusIcon = <Ban className="h-4 w-4" />;
+                      }
+                      
+                      return (
+                        <div className={`flex items-center gap-2 rounded border p-3 ${statusColor}`}>
+                          {statusIcon}
+                          <span className="font-semibold">Status Sinyal: {status}</span>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function ClientsSection() {
   const [clients, setClients] = useState<ClientItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -2760,6 +3898,9 @@ function ClientsSection() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
   const [totalItems, setTotalItems] = useState(0)
+  const [checkingRedaman, setCheckingRedaman] = useState(false)
+  const [redamanResult, setRedamanResult] = useState<any>(null)
+  const [redamanError, setRedamanError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [createOpen, setCreateOpen] = useState(false)
   const [createForm, setCreateForm] = useState<ClientFormState>(() => ({
@@ -3421,9 +4562,7 @@ function ClientsSection() {
                     disabled={submitting}
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   >
-                    <option value="pppoe">PPPoE</option>
                     <option value="static">Static</option>
-                    <option value="dhcp">DHCP</option>
                   </select>
                 </FormField>
                 <FormField label="Status">
@@ -3539,9 +4678,7 @@ function ClientsSection() {
                     disabled={submitting}
                     className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-primary focus:outline-none"
                   >
-                    <option value="pppoe">PPPoE</option>
                     <option value="static">Static</option>
-                    <option value="dhcp">DHCP</option>
                   </select>
                 </FormField>
                 <FormField label="Status">
